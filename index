@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voight-Kampff Test Simulator</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+        }
+        .scanlines {
+            position: relative;
+        }
+        .scanlines::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(34, 197, 94, 0.03) 2px,
+                rgba(34, 197, 94, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-black text-green-400 min-h-screen scanlines">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const VoightKampffTest = () => {
+          const [gameState, setGameState] = useState('intro');
+          const [selectedGender, setSelectedGender] = useState('');
+          const [currentQuestion, setCurrentQuestion] = useState(0);
+          const [answers, setAnswers] = useState([]);
+          const [startTime, setStartTime] = useState(0);
+          const [reactionTimes, setReactionTimes] = useState([]);
+          const [humanityScore, setHumanityScore] = useState(0);
+          const [testResult, setTestResult] = useState(null);
+          const [pulseRate, setPulseRate] = useState(72);
+          const [breathing, setBreathing] = useState(16);
+
+          const questions = [
+            {
+              id: 1,
+              text: "Вы находите в пустыне черепаху, лежащую на спине под жарким солнцем, отчаянно пытающуюся перевернуться, но не можете ей помочь. Что вы чувствуете?",
+              options: [
+                { text: "Сильное желание помочь черепахе", humanity: 3 },
+                { text: "Любопытство к ее поведению", humanity: 1 },
+                { text: "Равнодушие, это естественный отбор", humanity: -2 },
+                { text: "Раздражение от бесполезности черепахи", humanity: -3 }
+              ]
+            },
+            {
+              id: 2,
+              text: "Ваш лучший друг дарит вам кошелек из кожи теленка на день рождения. Как вы реагируете?",
+              options: [
+                { text: "Благодарю, но чувствую дискомфорт", humanity: 2 },
+                { text: "Принимаю подарок с радостью", humanity: 0 },
+                { text: "Отказываюсь принять подарок", humanity: 3 },
+                { text: "Анализирую качество кожи", humanity: -2 }
+              ]
+            },
+            {
+              id: 3,
+              text: "Вы смотрите старый фильм. В нем показывают банкет, где подают вареных собак. Гости едят с удовольствием. Ваша реакция?",
+              options: [
+                { text: "Отворачиваюсь с отвращением", humanity: 3 },
+                { text: "Понимаю, что это культурные различия", humanity: 1 },
+                { text: "Смотрю с научным интересом", humanity: -1 },
+                { text: "Меня это не затрагивает", humanity: -3 }
+              ]
+            },
+            {
+              id: 4,
+              text: "Вы читаете ребенку сказку на ночь. Это история о маленькой девочке, которая сжигает бабочек лупой. Что вы делаете?",
+              options: [
+                { text: "Останавливаюсь и меняю сюжет", humanity: 3 },
+                { text: "Дочитываю, но объясняю мораль", humanity: 2 },
+                { text: "Читаю как есть, это просто история", humanity: -1 },
+                { text: "Дочитываю с интересом", humanity: -3 }
+              ]
+            },
+            {
+              id: 5,
+              text: "У вас есть четкое воспоминание о вашем первом домашнем животном - коте по имени Феликс. Но вдруг вы понимаете, что не можете вспомнить, как он умер. Что вы чувствуете?",
+              options: [
+                { text: "Грусть и желание вспомнить", humanity: 2 },
+                { text: "Тревогу по поводу памяти", humanity: 1 },
+                { text: "Это не важно, воспоминание есть", humanity: -1 },
+                { text: "Анализирую логику воспоминания", humanity: -2 }
+              ]
+            },
+            {
+              id: 6,
+              text: "Вы видите фотографию в журнале: обнаженная женщина прикована цепью к столу. Журнал лежит на столе вашего коллеги. Что вы делаете?",
+              options: [
+                { text: "Чувствую отвращение и дискомфорт", humanity: 3 },
+                { text: "Делаю замечание коллеге", humanity: 2 },
+                { text: "Игнорирую, не мое дело", humanity: 0 },
+                { text: "Изучаю композицию фотографии", humanity: -3 }
+              ]
+            },
+            {
+              id: 7,
+              text: "Опишите свою мать.",
+              options: [
+                { text: "Теплые воспоминания и эмоции", humanity: 3 },
+                { text: "Сложные отношения, но я ее люблю", humanity: 2 },
+                { text: "Объективное описание характера", humanity: -1 },
+                { text: "Набор физических и психологических характеристик", humanity: -3 }
+              ]
+            },
+            {
+              id: 8,
+              text: "Вам предлагают работу на скотобойне. Зарплата отличная, условия хорошие. Принимаете ли вы предложение?",
+              options: [
+                { text: "Отказываюсь категорически", humanity: 3 },
+                { text: "Отказываюсь, но понимаю необходимость", humanity: 1 },
+                { text: "Принимаю, если нет альтернатив", humanity: -1 },
+                { text: "Принимаю, работа как работа", humanity: -3 }
+              ]
+            }
+          ];
+
+          // Эффект для анимации показателей
+          useEffect(() => {
+            const interval = setInterval(() => {
+              setPulseRate(prev => Math.max(60, Math.min(120, prev + (Math.random() - 0.5) * 4)));
+              setBreathing(prev => Math.max(12, Math.min(25, prev + (Math.random() - 0.5) * 2)));
+            }, 1000);
+            return () => clearInterval(interval);
+          }, []);
+
+          const startTest = (gender) => {
+            setSelectedGender(gender);
+            setGameState('testing');
+            setStartTime(Date.now());
+          };
+
+          const answerQuestion = (answerIndex) => {
+            const reactionTime = Date.now() - startTime;
+            const selectedAnswer = questions[currentQuestion].options[answerIndex];
+            
+            setAnswers([...answers, { questionId: currentQuestion, answerIndex, reactionTime }]);
+            setReactionTimes([...reactionTimes, reactionTime]);
+            
+            let scoreModifier = selectedAnswer.humanity;
+            
+            if (reactionTime < 2000) {
+              scoreModifier -= 1;
+            } else if (reactionTime > 15000) {
+              scoreModifier -= 2;
+            }
+            
+            setHumanityScore(prev => prev + scoreModifier);
+            
+            if (selectedAnswer.humanity > 0) {
+              setPulseRate(prev => prev + 5);
+              setBreathing(prev => prev + 2);
+            }
+            
+            if (currentQuestion < questions.length - 1) {
+              setCurrentQuestion(prev => prev + 1);
+              setStartTime(Date.now());
+            } else {
+              calculateResult();
+            }
+          };
+
+          const calculateResult = () => {
+            const avgReactionTime = reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length;
+            const finalScore = humanityScore;
+            
+            let result = {
+              isHuman: finalScore > 2,
+              confidence: Math.min(95, Math.abs(finalScore * 8) + 60),
+              humanityScore: finalScore,
+              avgReactionTime: Math.round(avgReactionTime / 1000 * 10) / 10,
+              analysis: []
+            };
+            
+            if (finalScore > 5) {
+              result.analysis.push("Высокий уровень эмпатии к живым существам");
+              result.analysis.push("Сильная эмоциональная реакция на моральные дилеммы");
+            } else if (finalScore > 0) {
+              result.analysis.push("Умеренная эмпатия, возможно подавляемая логикой");
+              result.analysis.push("Пограничные показатели человечности");
+            } else {
+              result.analysis.push("Преобладание логики над эмоциями");
+              result.analysis.push("Отсутствие типичных человеческих эмоциональных реакций");
+            }
+            
+            if (avgReactionTime < 3000) {
+              result.analysis.push("Подозрительно быстрые реакции на эмоциональные стимулы");
+            } else if (avgReactionTime > 12000) {
+              result.analysis.push("Замедленная обработка эмоциональной информации");
+            }
+            
+            setTestResult(result);
+            setGameState('result');
+          };
+
+          const resetTest = () => {
+            setGameState('intro');
+            setSelectedGender('');
+            setCurrentQuestion(0);
+            setAnswers([]);
+            setReactionTimes([]);
+            setHumanityScore(0);
+            setTestResult(null);
+            setPulseRate(72);
+            setBreathing(16);
+          };
+
+          return React.createElement('div', {
+            className: "min-h-screen bg-black text-green-400 font-mono overflow-hidden relative"
+          }, [
+            React.createElement('div', {
+              key: 'scanlines',
+              className: "absolute inset-0 pointer-events-none"
+            }, [
+              React.createElement('div', {
+                key: 'gradient',
+                className: "h-full bg-gradient-to-b from-transparent via-green-400 to-transparent opacity-10 animate-pulse"
+              }),
+              ...Array.from({length: 20}, (_, i) => 
+                React.createElement('div', {
+                  key: i,
+                  className: "absolute w-full h-px bg-green-400 opacity-10",
+                  style: { top: `${i * 5}%` }
+                })
+              )
+            ]),
+
+            React.createElement('div', {
+              key: 'content',
+              className: "relative z-10"
+            }, [
+              React.createElement('header', {
+                key: 'header',
+                className: "text-center py-6 border-b border-green-800"
+              }, [
+                React.createElement('h1', {
+                  key: 'title',
+                  className: "text-4xl font-bold text-green-300 mb-2 tracking-wider"
+                }, 'VOIGHT-KAMPFF TEST'),
+                React.createElement('p', {
+                  key: 'subtitle',
+                  className: "text-sm text-green-600"
+                }, 'NEXUS-6 REPLICANT DETECTION PROTOCOL')
+              ]),
+
+              gameState === 'intro' && React.createElement('div', {
+                key: 'intro',
+                className: "max-w-2xl mx-auto p-8 mt-12"
+              }, 
+                React.createElement('div', {
+                  className: "bg-gray-900 border border-green-800 p-8 rounded-lg shadow-2xl"
+                }, [
+                  React.createElement('h2', {
+                    key: 'intro-title',
+                    className: "text-2xl text-center mb-8 text-green-300"
+                  }, 'ИНИЦИАЛИЗАЦИЯ ТЕСТОВОГО СУБЪЕКТА'),
+                  React.createElement('p', {
+                    key: 'intro-text',
+                    className: "text-center mb-8 text-green-500 leading-relaxed"
+                  }, 'Протокол требует идентификации субъекта перед началом тестирования. Выберите конфигурацию для продолжения процедуры.'),
+                  React.createElement('div', {
+                    key: 'buttons',
+                    className: "flex justify-center space-x-8"
+                  }, [
+                    React.createElement('button', {
+                      key: 'male',
+                      onClick: () => startTest('male'),
+                      className: "bg-green-900 hover:bg-green-800 border border-green-600 px-8 py-4 rounded transition-all hover:shadow-lg hover:shadow-green-400/20"
+                    }, [
+                      React.createElement('div', { key: 'icon1', className: "text-2xl mb-2" }, '👤'),
+                      React.createElement('div', { key: 'text1' }, 'МУЖСКОЙ'),
+                      React.createElement('div', { key: 'sub1', className: "text-xs text-green-600" }, 'СУБЪЕКТ-М')
+                    ]),
+                    React.createElement('button', {
+                      key: 'female',
+                      onClick: () => startTest('female'),
+                      className: "bg-green-900 hover:bg-green-800 border border-green-600 px-8 py-4 rounded transition-all hover:shadow-lg hover:shadow-green-400/20"
+                    }, [
+                      React.createElement('div', { key: 'icon2', className: "text-2xl mb-2" }, '👤'),
+                      React.createElement('div', { key: 'text2' }, 'ЖЕНСКИЙ'),
+                      React.createElement('div', { key: 'sub2', className: "text-xs text-green-600" }, 'СУБЪЕКТ-Ж')
+                    ])
+                  ])
+                ])
+              ),
+
+              gameState === 'testing' && React.createElement('div', {
+                key: 'testing',
+                className: "max-w-6xl mx-auto p-4"
+              },
+                React.createElement('div', {
+                  className: "grid grid-cols-1 lg:grid-cols-3 gap-6"
+                }, [
+                  React.createElement('div', {
+                    key: 'questions',
+                    className: "lg:col-span-2"
+                  }, [
+                    React.createElement('div', {
+                      key: 'question-panel',
+                      className: "bg-gray-900 border border-green-800 p-6 rounded-lg mb-4"
+                    }, [
+                      React.createElement('div', {
+                        key: 'header',
+                        className: "flex justify-between items-center mb-4"
+                      }, [
+                        React.createElement('span', {
+                          key: 'progress',
+                          className: "text-green-600"
+                        }, `ВОПРОС ${currentQuestion + 1}/${questions.length}`),
+                        React.createElement('span', {
+                          key: 'subject',
+                          className: "text-green-600"
+                        }, `СУБЪЕКТ: ${selectedGender === 'male' ? 'М' : 'Ж'}`)
+                      ]),
+                      React.createElement('div', {
+                        key: 'question-text',
+                        className: "bg-black border border-green-700 p-6 rounded mb-6"
+                      },
+                        React.createElement('p', {
+                          className: "text-lg leading-relaxed text-green-300"
+                        }, questions[currentQuestion].text)
+                      ),
+                      React.createElement('div', {
+                        key: 'options',
+                        className: "space-y-3"
+                      }, questions[currentQuestion].options.map((option, index) =>
+                        React.createElement('button', {
+                          key: index,
+                          onClick: () => answerQuestion(index),
+                          className: "w-full bg-gray-800 hover:bg-green-900 border border-green-700 hover:border-green-500 p-4 rounded text-left transition-all hover:shadow-md hover:shadow-green-400/20"
+                        }, [
+                          React.createElement('span', {
+                            key: 'letter',
+                            className: "text-green-600 mr-2"
+                          }, `[${String.fromCharCode(65 + index)}]`),
+                          option.text
+                        ])
+                      ))
+                    ])
+                  ]),
+                  React.createElement('div', {
+                    key: 'monitoring',
+                    className: "space-y-4"
+                  }, [
+                    React.createElement('div', {
+                      key: 'biometric',
+                      className: "bg-gray-900 border border-green-800 p-4 rounded-lg"
+                    }, [
+                      React.createElement('h3', {
+                        key: 'bio-title',
+                        className: "text-green-300 mb-4"
+                      }, 'БИОМЕТРИЧЕСКИЕ ПОКАЗАТЕЛИ'),
+                      React.createElement('div', {
+                        key: 'bio-data',
+                        className: "space-y-3"
+                      }, [
+                        React.createElement('div', { key: 'pulse' }, [
+                          React.createElement('div', {
+                            key: 'pulse-header',
+                            className: "flex justify-between text-sm"
+                          }, [
+                            React.createElement('span', { key: 'pulse-label' }, 'ПУЛЬС'),
+                            React.createElement('span', { key: 'pulse-value' }, `${Math.round(pulseRate)} BPM`)
+                          ]),
+                          React.createElement('div', {
+                            key: 'pulse-bar-bg',
+                            className: "bg-black border border-green-700 h-2 rounded overflow-hidden"
+                          },
+                            React.createElement('div', {
+                              key: 'pulse-bar',
+                              className: "h-full bg-green-400 transition-all duration-1000",
+                              style: { width: `${Math.min(100, (pulseRate - 60) * 2)}%` }
+                            })
+                          )
+                        ]),
+                        React.createElement('div', { key: 'breathing' }, [
+                          React.createElement('div', {
+                            key: 'breath-header',
+                            className: "flex justify-between text-sm"
+                          }, [
+                            React.createElement('span', { key: 'breath-label' }, 'ДЫХАНИЕ'),
+                            React.createElement('span', { key: 'breath-value' }, `${Math.round(breathing)} /MIN`)
+                          ]),
+                          React.createElement('div', {
+                            key: 'breath-bar-bg',
+                            className: "bg-black border border-green-700 h-2 rounded overflow-hidden"
+                          },
+                            React.createElement('div', {
+                              key: 'breath-bar',
+                              className: "h-full bg-green-400 transition-all duration-1000",
+                              style: { width: `${Math.min(100, breathing * 5)}%` }
+                            })
+                          )
+                        ])
+                      ])
+                    ]),
+                    React.createElement('div', {
+                      key: 'status',
+                      className: "bg-gray-900 border border-green-800 p-4 rounded-lg"
+                    }, [
+                      React.createElement('h3', {
+                        key: 'status-title',
+                        className: "text-green-300 mb-4"
+                      }, 'СТАТУС СКАНИРОВАНИЯ'),
+                      React.createElement('div', {
+                        key: 'status-data',
+                        className: "text-sm space-y-2"
+                      }, [
+                        React.createElement('div', {
+                          key: 'progress-header',
+                          className: "flex justify-between"
+                        }, [
+                          React.createElement('span', { key: 'prog-label' }, 'ПРОГРЕСС:'),
+                          React.createElement('span', { key: 'prog-value' }, `${Math.round(((currentQuestion + 1) / questions.length) * 100)}%`)
+                        ]),
+                        React.createElement('div', {
+                          key: 'progress-bar-bg',
+                          className: "bg-black border border-green-700 h-2 rounded overflow-hidden"
+                        },
+                          React.createElement('div', {
+                            key: 'progress-bar',
+                            className: "h-full bg-green-400 transition-all duration-500",
+                            style: { width: `${((currentQuestion + 1) / questions.length) * 100}%` }
+                          })
+                        ),
+                        React.createElement('div', {
+                          key: 'analysis-text',
+                          className: "text-green-600 text-xs"
+                        }, 'АНАЛИЗ НЕЙРОННЫХ ПАТТЕРНОВ...')
+                      ])
+                    ]),
+                    React.createElement('div', {
+                      key: 'warning',
+                      className: "bg-gray-900 border border-red-800 p-4 rounded-lg"
+                    },
+                      React.createElement('div', {
+                        className: "text-red-400 text-xs text-center"
+                      }, '⚠ КЛАССИФИКАЦИЯ РЕЖИМА ⚠\nНЕАВТОРИЗОВАННОЕ ВМЕШАТЕЛЬСТВО\nБУДЕТ РАСЦЕНЕНО КАК ПРЕПЯТСТВИЕ')
+                    )
+                  ])
+                ])
+              ),
+
+              gameState === 'result' && testResult && React.createElement('div', {
+                key: 'result',
+                className: "max-w-4xl mx-auto p-8 mt-12"
+              },
+                React.createElement('div', {
+                  className: "bg-gray-900 border border-green-800 p-8 rounded-lg shadow-2xl"
+                }, [
+                  React.createElement('h2', {
+                    key: 'result-title',
+                    className: "text-3xl text-center mb-8 text-green-300"
+                  }, 'РЕЗУЛЬТАТЫ АНАЛИЗА'),
+                  React.createElement('div', {
+                    key: 'result-grid',
+                    className: "grid grid-cols-1 md:grid-cols-2 gap-8 mb-8"
+                  }, [
+                    React.createElement('div', {
+                      key: 'classification',
+                      className: "bg-black border border-green-700 p-6 rounded"
+                    }, [
+                      React.createElement('h3', {
+                        key: 'class-title',
+                        className: "text-xl mb-4 text-green-300"
+                      }, 'КЛАССИФИКАЦИЯ СУБЪЕКТА'),
+                      React.createElement('div', {
+                        key: 'class-result',
+                        className: `text-4xl font-bold mb-2 ${testResult.isHuman ? 'text-green-400' : 'text-red-400'}`
+                      }, testResult.isHuman ? 'ЧЕЛОВЕК' : 'РЕПЛИКАНТ'),
+                      React.createElement('div', {
+                        key: 'confidence',
+                        className: "text-green-600"
+                      }, `Уверенность: ${testResult.confidence}%`),
+                      React.createElement('div', {
+                        key: 'humanity-score',
+                        className: "text-green-600 text-sm mt-2"
+                      }, `Индекс человечности: ${testResult.humanityScore > 0 ? '+' : ''}${testResult.humanityScore}`)
+                    ]),
+                    React.createElement('div', {
+                      key: 'timing',
+                      className: "bg-black border border-green-700 p-6 rounded"
+                    }, [
+                      React.createElement('h3', {
+                        key: 'time-title',
+                        className: "text-xl mb-4 text-green-300"
+                      }, 'ВРЕМЕННЫЕ ПОКАЗАТЕЛИ'),
+                      React.createElement('div', {
+                        key: 'avg-time',
+                        className: "text-2xl text-green-400 mb-2"
+                      }, `${testResult.avgReactionTime}с`),
+                      React.createElement('div', {
+                        key: 'time-label',
+                        className: "text-green-600"
+                      }, 'Среднее время реакции'),
+                      React.createElement('div', {
+                        key: 'stimuli-count',
+                        className: "text-green-600 text-sm mt-2"
+                      }, `Обработано ${questions.length} стимулов`)
+                    ])
+                  ]),
+                  React.createElement('div', {
+                    key: 'analysis',
+                    className: "bg-black border border-green-700 p-6 rounded mb-8"
+                  }, [
+                    React.createElement('h3', {
+                      key: 'analysis-title',
+                      className: "text-xl mb-4 text-green-300"
+                    }, 'ПСИХОЛОГИЧЕСКИЙ ПРОФИЛЬ'),
+                    React.createElement('ul', {
+                      key: 'analysis-list',
+                      className: "space-y-2"
+                    }, testResult.analysis.map((item, index) =>
+                      React.createElement('li', {
+                        key: index,
+                        className: "text-green-500 text-sm"
+                      }, [
+                        React.createElement('span', {
+                          key: 'bullet',
+                          className: "text-green-600 mr-2"
+                        }, '▸'),
+                        item
+                      ])
+                    ))
+                  ]),
+                  React.createElement('div', {
+                    key: 'restart',
+                    className: "text-center"
+                  },
+                    React.createElement('button', {
+                      onClick: resetTest,
+                      className: "bg-green-900 hover:bg-green-800 border border-green-600 px-8 py-3 rounded transition-all hover:shadow-lg hover:shadow-green-400/20"
+                    }, 'ПОВТОРИТЬ ТЕСТИРОВАНИЕ')
+                  )
+                ])
+              ),
+
+              React.createElement('footer', {
+                key: 'footer',
+                className: "text-center py-4 text-xs text-green-700 relative z-10"
+              }, 'TYRELL CORPORATION • NEXUS-6 DETECTION PROTOCOL • BLADE RUNNER DIVISION')
+            ])
+          ]);
+        };
+
+        ReactDOM.render(React.createElement(VoightKampffTest), document.getElementById('root'));
+    </script>
+</body>
+</html>
